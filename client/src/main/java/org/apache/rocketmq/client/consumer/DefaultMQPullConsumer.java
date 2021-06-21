@@ -42,32 +42,40 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
     /**
      * Do the same thing for the same Group, the application must be set,and
      * guarantee Globally unique
+     * 消费者组名字。
      */
     private String consumerGroup;
     /**
      * Long polling mode, the Consumer connection max suspend time, it is not
      * recommended to modify
+     * 在长轮询模式下，Broker的最大挂起请求时间，建议不要修改此值。
      */
     private long brokerSuspendMaxTimeMillis = 1000 * 20;
     /**
      * Long polling mode, the Consumer connection timeout(must greater than
      * brokerSuspendMaxTimeMillis), it is not recommended to modify
+     * 在长轮询模式下，消费者的最大请求超时时间，必须比brokerSuspendMaxTimeMillis大，不建议修改
      */
     private long consumerTimeoutMillisWhenSuspend = 1000 * 30;
     /**
      * The socket timeout in milliseconds
+     * 消费者Pull消息时Socket的超时时间。
      */
     private long consumerPullTimeoutMillis = 1000 * 10;
     /**
      * Consumption pattern,default is clustering
+     * 消费模式，现在支持集群模式消费和广播模式消费。
      */
     private MessageModel messageModel = MessageModel.CLUSTERING;
     /**
      * Message queue listener
+     * 消息路由信息变化时回调处理监听器，一般在重新平衡时会被调用。
      */
     private MessageQueueListener messageQueueListener;
     /**
      * Offset Storage
+     * 位点存储模块。集群模式位点会持久化到Broker中，广播模式持久化到本地文件中，
+     * 位点存储模块有两个实现类：RemoteBrokerOffsetStore 和LocalFileOffsetStore。
      */
     private OffsetStore offsetStore;
     /**
@@ -76,6 +84,7 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
     private Set<String> registerTopics = new HashSet<String>();
     /**
      * Queue allocation algorithm
+     * 消费Queue分配策略管理器。
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy = new AllocateMessageQueueAveragely();
     /**
@@ -83,6 +92,9 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
      */
     private boolean unitMode = false;
 
+    /**
+     * 最大重试次数，可以配置
+     */
     private int maxReconsumeTimes = 16;
 
     public DefaultMQPullConsumer() {
@@ -220,6 +232,12 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
         this.defaultMQPullConsumerImpl.sendMessageBack(msg, delayLevel, brokerName);
     }
 
+    /**
+     * 取一个Topic的全部Queue信息。
+     * @param topic message topic
+     * @return
+     * @throws MQClientException
+     */
     @Override
     public Set<MessageQueue> fetchSubscribeMessageQueues(String topic) throws MQClientException {
         return this.defaultMQPullConsumerImpl.fetchSubscribeMessageQueues(topic);
@@ -235,6 +253,11 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
         this.defaultMQPullConsumerImpl.shutdown();
     }
 
+    /**
+     * 注册队列变化监听器，当队列发生变化时会被监听到。
+     * @param topic
+     * @param listener
+     */
     @Override
     public void registerMessageQueueListener(String topic, MessageQueueListener listener) {
         synchronized (this.registerTopics) {
@@ -245,6 +268,20 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
         }
     }
 
+    /**
+     * 从Broker中Pull消息，如果有PullCallback参数，则表示异步拉取。
+     * @param mq from which message queue
+     * @param subExpression subscription expression.it only support or operation such as "tag1 || tag2 || tag3" <br> if
+     * null or * expression,meaning subscribe
+     * all
+     * @param offset from where to pull
+     * @param maxNums max pulling numbers
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     @Override
     public PullResult pull(MessageQueue mq, String subExpression, long offset, int maxNums)
         throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
@@ -270,6 +307,18 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
         this.defaultMQPullConsumerImpl.pull(mq, subExpression, offset, maxNums, pullCallback, timeout);
     }
 
+    /**
+     * 长轮询方式拉取。如果没有拉取到消息，那么Broker会将请求Hold住一段时间。
+     * @param mq
+     * @param subExpression
+     * @param offset
+     * @param maxNums
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     @Override
     public PullResult pullBlockIfNotFound(MessageQueue mq, String subExpression, long offset, int maxNums)
         throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
@@ -283,11 +332,24 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
         this.defaultMQPullConsumerImpl.pullBlockIfNotFound(mq, subExpression, offset, maxNums, pullCallback);
     }
 
+    /**
+     * 更新某一个Queue的消费位点。
+     * @param mq
+     * @param offset
+     * @throws MQClientException
+     */
     @Override
     public void updateConsumeOffset(MessageQueue mq, long offset) throws MQClientException {
         this.defaultMQPullConsumerImpl.updateConsumeOffset(mq, offset);
     }
 
+    /**
+     * 查找某个Queue的消费位点。
+     * @param mq
+     * @param fromStore
+     * @return
+     * @throws MQClientException
+     */
     @Override
     public long fetchConsumeOffset(MessageQueue mq, boolean fromStore) throws MQClientException {
         return this.defaultMQPullConsumerImpl.fetchConsumeOffset(mq, fromStore);
@@ -310,6 +372,17 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
         return this.defaultMQPullConsumerImpl.queryMessageByUniqKey(topic, uniqKey);
     }
 
+    /**
+     * 如果消费发送失败，则可以将消息重新发回给 Broker，这个消费者组延迟一段时间后可以再消费（也就是重试）。
+     * @param msg
+     * @param delayLevel
+     * @param brokerName
+     * @param consumerGroup
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     * @throws MQClientException
+     */
     @Override
     public void sendMessageBack(MessageExt msg, int delayLevel, String brokerName, String consumerGroup)
         throws RemotingException, MQBrokerException, InterruptedException, MQClientException {

@@ -22,20 +22,27 @@ import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.body.ConsumeMessageDirectlyResult;
 
 public interface ConsumeMessageService {
+    //
     void start();
 
     void shutdown();
 
+    //更新消费线程池的核心线程数。
     void updateCorePoolSize(int corePoolSize);
 
+    //增加一个消费线程池的核心线程数。
     void incCorePoolSize();
 
+    //减少一个消费线程池的核心线程数。
     void decCorePoolSize();
 
+    //获取消费线程池的核心线程数。
     int getCorePoolSize();
 
+    //如果一个消息已经被消费过了，但是还想再消费一次，就需要实现这个方法。
     ConsumeMessageDirectlyResult consumeMessageDirectly(final MessageExt msg, final String brokerName);
 
+    //将消息封装成线程池任务，提交给消费服务，消费服务再将消息传递给业务消费进行处理。
     void submitConsumeRequest(
         final List<MessageExt> msgs,
         final ProcessQueue processQueue,

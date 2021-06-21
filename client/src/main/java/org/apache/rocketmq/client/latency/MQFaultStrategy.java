@@ -56,9 +56,14 @@ public class MQFaultStrategy {
     }
 
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
+        // 发送延迟容错开关，默认为关闭，如果开关打开了，会触发发送延迟容错机制来选择发送Queue
+        // 可以通过 sendLatencyFaultEnable 来设置是否总是发送到延迟级别较低的 Broker，默认值为False
         if (this.sendLatencyFaultEnable) {
             try {
                 int index = tpInfo.getSendWhichQueue().getAndIncrement();
+                // 获取一个在延迟上可以接受，并且和上次发送相同的Broker。
+                // 首先获取一个自增序号 index，通过取模获取Queue的位置下标 Pos。如果 Pos对应的 Broker的延迟时间是可以接受的，
+                // 并且是第一次发送，或者和上次发送的Broker相同，则将Queue返回
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
                     int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
                     if (pos < 0)
@@ -70,6 +75,7 @@ public class MQFaultStrategy {
                     }
                 }
 
+                // 如果第一步没有选中一个Broker，则选择一个延迟较低的Broker。
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
                 if (writeQueueNums > 0) {
@@ -86,6 +92,7 @@ public class MQFaultStrategy {
                 log.error("Error occurred when selecting message queue", e);
             }
 
+            //如果第一、二步都没有选中一个Broker，则随机选择一个Broker。
             return tpInfo.selectOneMessageQueue();
         }
 

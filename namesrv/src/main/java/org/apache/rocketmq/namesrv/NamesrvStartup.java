@@ -79,6 +79,8 @@ public class NamesrvStartup {
             return null;
         }
 
+        //创建NameServerConfig（NameServer业务参数）、NettyServer-Config（NameServer网络参数），
+        // 然后在解析启动时把指定的配置文件或启动命令中的选项值，填充到nameServerConfig, nettyServerConfig对象
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
         nettyServerConfig.setListenPort(9876);
@@ -135,13 +137,14 @@ public class NamesrvStartup {
         if (null == controller) {
             throw new IllegalArgumentException("NamesrvController is null");
         }
-
+        //controller 初始化
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
+        //注册JVM钩子函数并启动服务器，以便监听Broker、消息生产者的网络请求。
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {

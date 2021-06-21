@@ -790,6 +790,7 @@ public class BrokerController {
 
         this.registerBrokerAll(true, false, true);
 
+        //定时任务，每个30s(默认)向namesrv发送心跳包
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

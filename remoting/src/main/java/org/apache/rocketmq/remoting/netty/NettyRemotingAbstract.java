@@ -365,12 +365,15 @@ public abstract class NettyRemotingAbstract {
 
         try {
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
+            // RocketMQ每次发送同步请求前都会为一个request分配一个opaque，这是一个原子自增的id，
+            // 一个response会以opaque作为key保存在responseTable中，这样用opaque就将request和response连接起来了。
             this.responseTable.put(opaque, responseFuture);
             final SocketAddress addr = channel.remoteAddress();
+            //调用netty方法，发送请求并添加监听器
             channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture f) throws Exception {
-                    if (f.isSuccess()) {
+                    if (f.isSuccess()) {    //如果调用成功则返回
                         responseFuture.setSendRequestOK(true);
                         return;
                     } else {
@@ -384,6 +387,7 @@ public abstract class NettyRemotingAbstract {
                 }
             });
 
+            //程序会执行 waitResponse（）方法，直到 Netty接收 Broker的返回结果
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
             if (null == responseCommand) {
                 if (responseFuture.isSendRequestOK()) {

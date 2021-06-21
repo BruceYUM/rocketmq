@@ -140,19 +140,22 @@ public class PullAPIWrapper {
     }
 
     public PullResult pullKernelImpl(
-        final MessageQueue mq,
-        final String subExpression,
-        final String expressionType,
-        final long subVersion,
-        final long offset,
-        final int maxNums,
-        final int sysFlag,
-        final long commitOffset,
-        final long brokerSuspendMaxTimeMillis,
-        final long timeoutMillis,
-        final CommunicationMode communicationMode,
-        final PullCallback pullCallback
+        final MessageQueue mq,          //从哪个消息消费队列拉取消息
+        final String subExpression,     //消息过滤表达式。
+        final String expressionType,    //消息表达式类型，分为TAG、SQL92。
+        final long subVersion,          //
+        final long offset,              //消息拉取偏移量。
+        final int maxNums,              //本次拉取最大消息条数，默认32条。
+        final int sysFlag,              //拉取系统标记。
+        final long commitOffset,        //当前MessageQueue的消费进度（内存中）。
+        final long brokerSuspendMaxTimeMillis,//当前MessageQueue的消费进度（内存中）。
+        final long timeoutMillis,       //消息拉取超时时间。
+        final CommunicationMode communicationMode,//消息拉取模式，默认为异步拉取。
+        final PullCallback pullCallback //从Broker拉取到消息后的回调方法。
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
+        // 据brokerName、BrokerId从MQClientInstance中获取Broker地址，在整个RocketMQ Broker的部署结构中，
+        // 相同名称的Broker构成主从结构，其BrokerId会不一样，在每次拉取消息后，会给出一个建议，下次拉取从主节点还是从节点拉取。
         FindBrokerResult findBrokerResult =
             this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(),
                 this.recalculatePullFromWhichNode(mq), false);
@@ -191,6 +194,8 @@ public class PullAPIWrapper {
             requestHeader.setSubVersion(subVersion);
             requestHeader.setExpressionType(expressionType);
 
+            // 如果消息过滤模式为类过滤，则需要根据主题名称、broker地址找到注册在Broker上的FilterServer地址，
+            // 从FilterServer上拉取消息，否则从Broker上拉取消息。
             String brokerAddr = findBrokerResult.getBrokerAddr();
             if (PullSysFlag.hasClassFilterFlag(sysFlagInner)) {
                 brokerAddr = computPullFromWhichFilterServer(mq.getTopic(), brokerAddr);

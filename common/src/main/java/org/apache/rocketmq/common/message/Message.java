@@ -25,11 +25,11 @@ import java.util.Map;
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
-    private String topic;
-    private int flag;
-    private Map<String, String> properties;
-    private byte[] body;
-    private String transactionId;
+    private String topic;                       //主题名字，可以通过RocketMQ Console创建。
+    private int flag;                           //目前没用。
+    private Map<String, String> properties;     //消息扩展信息，Tag、keys、延迟级别都保存在这里。
+    private byte[] body;                        //消息体，字节数组。需要注意生产者使用什么编码，消费者也必须使用相同编码解码，否则会产生乱码。
+    private String transactionId;//
 
     public Message() {
     }

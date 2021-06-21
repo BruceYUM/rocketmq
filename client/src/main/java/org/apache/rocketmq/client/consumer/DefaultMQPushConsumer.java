@@ -114,6 +114,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * messages born prior to {@link #consumeTimestamp} will be ignored
      * </li>
      * </ul>
+     * 一个枚举，表示从什么位点开始消费。
      */
     private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET;
 
@@ -122,21 +123,25 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * 20131223171201<br>
      * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
      * Default backtracking consumption time Half an hour ago.
+     * ：表示从哪一时刻开始消费，格式为yyyyMMDDHHmmss，默认为半小时前。
      */
     private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
 
     /**
      * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
+     * 消费者订阅topic-queue策略。
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
     /**
      * Subscription relationship
+     * 订阅关系，表示当前消费者订阅了哪些Topic的哪些Tag。
      */
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
     /**
      * Message listener
+     * 消息Push回调监听器。
      */
     private MessageListener messageListener;
 
@@ -147,27 +152,32 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Minimum consumer thread number
+     * 最小消费线程数，必须小于consumeThreadMax。
      */
     private int consumeThreadMin = 20;
 
     /**
      * Max consumer thread number
+     * 最大线程数，必须大于consumeThreadMin。
      */
     private int consumeThreadMax = 64;
 
     /**
      * Threshold for dynamic adjustment of the number of thread pool
+     * 动态调整消费线程池的线程数大小，开源版本不支持该功能。
      */
     private long adjustThreadPoolNumsThreshold = 100000;
 
     /**
      * Concurrently max span offset.it has no effect on sequential consumption
+     * 并发消息的最大位点差。如果 Pull消息的位点差超过该值，拉取变慢。
      */
     private int consumeConcurrentlyMaxSpan = 2000;
 
     /**
      * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
      * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
+     * 一个 Queue 能缓存的最大消息数。超过该值则采取拉取流控措施。
      */
     private int pullThresholdForQueue = 1000;
 
@@ -177,6 +187,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * <p>
      * The size of a message only measured by message body, so it's not accurate
+     * 一个Queue最大能缓存的消息字节数，单位是MB。
      */
     private int pullThresholdSizeForQueue = 100;
 
@@ -188,6 +199,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * <p>
      * For example, if the value of pullThresholdForTopic is 1000 and 10 message queues are assigned to this consumer,
      * then pullThresholdForQueue will be set to 100
+     * 一个Topic最大能缓存的消息数。超过该值则采取拉取流控措施。
      */
     private int pullThresholdForTopic = -1;
 
@@ -199,26 +211,31 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * <p>
      * For example, if the value of pullThresholdSizeForTopic is 1000 MiB and 10 message queues are
      * assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
+     * 一个Topic最大能缓存的消息字节数，单位是MB。
      */
     private int pullThresholdSizeForTopic = -1;
 
     /**
      * Message pull Interval
+     * 拉取间隔，单位为ms。
      */
     private long pullInterval = 0;
 
     /**
      * Batch consumption size
+     * 消费者每次批量消费时，最多消费多少条消息。
      */
     private int consumeMessageBatchMaxSize = 1;
 
     /**
      * Batch pull size
+     * 一次最多拉取多少条消息。
      */
     private int pullBatchSize = 32;
 
     /**
      * Whether update subscription relationship when every pull
+     * 每次拉取消息时是否更新订阅关系，该方法的返回值默认为False。
      */
     private boolean postSubscriptionWhenPull = false;
 
@@ -233,16 +250,19 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * If messages are re-consumed more than {@link #maxReconsumeTimes} before success, it's be directed to a deletion
      * queue waiting.
+     * 最大重试次数，该函数返回值默认为-1，表示默认最大重试次数为16。
      */
     private int maxReconsumeTimes = -1;
 
     /**
      * Suspending pulling time for cases requiring slow pulling like flow-control scenario.
+     * 为短轮询场景设置的挂起时间，比如顺序消息场景。
      */
     private long suspendCurrentQueueTimeMillis = 1000;
 
     /**
      * Maximum amount of time in minutes a message may block the consuming thread.
+     * 消费超时时间，单位为min，默认值为15min。
      */
     private long consumeTimeout = 15;
 

@@ -22,11 +22,11 @@ package org.apache.rocketmq.store;
 public class AppendMessageResult {
     // Return code
     private AppendMessageStatus status;
-    // Where to start writing
+    // Where to start writing消息的物理偏移量。
     private long wroteOffset;
     // Write Bytes
     private int wroteBytes;
-    // Message ID
+    // Message ID消息ID。
     private String msgId;
     // Message storage timestamp
     private long storeTimestamp;

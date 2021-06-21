@@ -27,24 +27,32 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
  */
 public class ClientConfig {
     public static final String SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY = "com.rocketmq.sendMessageWithVIPChannel";
+    //表示 RocketMQ 集群的 Namesrv地址，如果是多个则用分号分开
     private String namesrvAddr = System.getProperty(MixAll.NAMESRV_ADDR_PROPERTY, System.getenv(MixAll.NAMESRV_ADDR_ENV));
+    //使用的客户端程序所在机器的 IP地址。支持 IPv4和 IPv6，IPv4 排除了本地的环回地址和私有内网地址
     private String clientIP = RemotingUtil.getLocalAddress();
+    //实例名，每个实例都需要取唯一的名字，因为有时我们会在同一个机器上部署多个程序进程，如果名字有重复就会导致启动失败。
     private String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
+    //客户端回调线程数。该参数表示 Netty通信层回调线程的个数
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
     /**
      * Pulling topic information interval from the named server
+     * 获取 Topic 路由信息的间隔时长，单位为 ms，默认为30 000ms。
      */
     private int pollNameServerInterval = 1000 * 30;
     /**
      * Heartbeat interval in microseconds with message broker
+     * 与Broker心跳间隔的时长，单位为ms，默认为30 000ms。
      */
     private int heartbeatBrokerInterval = 1000 * 30;
     /**
      * Offset persistent interval for consumer
+     * 持久化消费位点时间间隔，单位为 ms，默认为5000ms。
      */
     private int persistConsumerOffsetInterval = 1000 * 5;
     private boolean unitMode = false;
     private String unitName;
+    //VIP通道和非VIP通道的区别是：在通信过程中使用的端口号不同。
     private boolean vipChannelEnabled = Boolean.parseBoolean(System.getProperty(SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY, "true"));
 
     private boolean useTLS = TlsSystemConfig.tlsEnable;

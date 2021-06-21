@@ -97,6 +97,7 @@ public abstract class ServiceThread implements Runnable {
         log.info("makestop thread " + this.getServiceName());
     }
 
+    //，执行 wakeup 命令后，this.waitForRunning （waitInterval）就会暂停，再执行this.mqClientFactory.doRebalance（）
     public void wakeup() {
         if (hasNotified.compareAndSet(false, true)) {
             waitPoint.countDown(); // notify

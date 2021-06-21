@@ -45,7 +45,9 @@ public class MQClientManager {
     }
 
     public MQClientInstance getAndCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
+        // 以 clientId@instantName 为Key
         String clientId = clientConfig.buildMQClientId();
+        // 从缓存中获取MQClientInstant实例
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
             instance =

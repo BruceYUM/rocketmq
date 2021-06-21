@@ -393,6 +393,8 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             ConsumeConcurrentlyContext context = new ConsumeConcurrentlyContext(messageQueue);
             ConsumeConcurrentlyStatus status = null;
 
+            //消费前：执行消费前的 hook 和重试消息预处理。消费前的hook可以理解为消费前的消息预处理（比如消息格式校验）。
+
             ConsumeMessageContext consumeMessageContext = null;
             if (ConsumeMessageConcurrentlyService.this.defaultMQPushConsumerImpl.hasHook()) {
                 consumeMessageContext = new ConsumeMessageContext();
@@ -407,6 +409,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             long beginTimestamp = System.currentTimeMillis();
             boolean hasException = false;
             ConsumeReturnType returnType = ConsumeReturnType.SUCCESS;
+            //预处理重试消息队列：如果拉取的消息来自重试队列，则将Topic名重置为原来的Topic名，而不用重试Topic名。
             try {
                 ConsumeMessageConcurrentlyService.this.resetRetryTopic(msgs);
                 if (msgs != null && !msgs.isEmpty()) {
@@ -414,6 +417,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                         MessageAccessor.setConsumeStartTimeStamp(msg, String.valueOf(System.currentTimeMillis()));
                     }
                 }
+                //消费回调：将消息传递给用户编写的业务消费代码进行处理；
                 status = listener.consumeMessage(Collections.unmodifiableList(msgs), context);
             } catch (Throwable e) {
                 log.warn("consumeMessage exception: {} Group: {} Msgs: {} MQ: {}",
@@ -438,6 +442,8 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 returnType = ConsumeReturnType.SUCCESS;
             }
 
+            //消费执行后：费结果统计和执行消费后的hook。客户端原生支持基本消费指标统计，比如消费耗时；
+            // 消费后的 hook和消费前的 hook要一一对应，用户可以用消费后的 hook统计与自身业务相关的指标。
             if (ConsumeMessageConcurrentlyService.this.defaultMQPushConsumerImpl.hasHook()) {
                 consumeMessageContext.getProps().put(MixAll.CONSUME_CONTEXT_TYPE, returnType.name());
             }
@@ -459,6 +465,10 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             ConsumeMessageConcurrentlyService.this.getConsumerStatsManager()
                 .incConsumeRT(ConsumeMessageConcurrentlyService.this.consumerGroup, messageQueue.getTopic(), consumeRT);
 
+            // 消息结果处理：包含消费指标统计、消费重试处理和消费位点处理。
+            // 消费指标主要是对消费成功和失败的TPS的统计；
+            // 消费重试处理主要将消费重试次数加1；
+            // 消费位点处理主要根据消费结果更新消费位点记录。
             if (!processQueue.isDropped()) {
                 ConsumeMessageConcurrentlyService.this.processConsumeResult(status, context, this);
             } else {

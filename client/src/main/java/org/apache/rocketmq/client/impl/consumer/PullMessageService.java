@@ -43,6 +43,7 @@ public class PullMessageService extends ServiceThread {
         this.mQClientFactory = mQClientFactory;
     }
 
+    // 往线程池里面提交拉取消息的请求
     public void executePullRequestLater(final PullRequest pullRequest, final long timeDelay) {
         if (!isStopped()) {
             this.scheduledExecutorService.schedule(new Runnable() {
@@ -56,6 +57,9 @@ public class PullMessageService extends ServiceThread {
         }
     }
 
+    //放入pullRequest
+    // 一是 RocketMQ根据PullRequest拉取任务执行完一次消息拉取任务后，又将PullRequest对象放入到pullRequestQueue，
+    // 第二个是在RebalancceImpl中创建
     public void executePullRequestImmediately(final PullRequest pullRequest) {
         try {
             this.pullRequestQueue.put(pullRequest);
@@ -86,12 +90,17 @@ public class PullMessageService extends ServiceThread {
         }
     }
 
+    /**
+     * 第一步：初始化 Push消费者实例。业务代码初始化DefaultMQPushConsumer实例，启动Pull服务PullMessageService。
+     * 该服务是一个线程服务，不断执行run（）方法拉取已经订阅Topic的全部队列的消息，将消息保存在本地的缓存队列中。
+     */
     @Override
     public void run() {
         log.info(this.getServiceName() + " service started");
 
         while (!this.isStopped()) {
             try {
+                //从pullRequestQueue中获取一个PullRequest消息拉取任务，如果pullRequest Queue为空，则线程将阻塞，直到有拉取任务被放入。
                 PullRequest pullRequest = this.pullRequestQueue.take();
                 this.pullMessage(pullRequest);
             } catch (InterruptedException ignored) {

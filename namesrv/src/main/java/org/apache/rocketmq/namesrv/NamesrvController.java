@@ -84,6 +84,10 @@ public class NamesrvController {
 
         this.registerProcessor();
 
+        //定时任务1:NameServer每隔10s扫描一次Broker，移除处于不激活状态的Broker。
+        //Broker启动时向集群中所有的NameServer发送心跳语句，每隔30s向集群中所有NameServer发送心跳包，
+        // NameServer收到Broker心跳包时会更新brokerLiveTable缓存中BrokerLiveInfo的lastUpdate Timestamp，
+        // 然后Name Server每隔10s扫描brokerLiveTable，如果连续120s没有收到心跳包，NameServer将移除该Broker的路由信息同时关闭Socket连接。
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -92,6 +96,7 @@ public class NamesrvController {
             }
         }, 5, 10, TimeUnit.SECONDS);
 
+        // 定时任务2:nameServer每隔10分钟打印一次KV配置。
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

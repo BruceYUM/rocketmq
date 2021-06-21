@@ -114,6 +114,7 @@ public class ClientRemotingProcessor implements NettyRequestProcessor {
         return null;
     }
 
+    //通知consumer有broker变化
     public RemotingCommand notifyConsumerIdsChanged(ChannelHandlerContext ctx,
         RemotingCommand request) throws RemotingCommandException {
         try {

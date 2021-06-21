@@ -52,12 +52,14 @@ import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
  * <p>
  * <strong>Thread Safety:</strong> After configuring and starting process, this class can be regarded as thread-safe
  * and used among multiple threads context.
+ * 客户端中的生产者有两个独立实现类DefaultMQProducer 和 TransactionMQProducer
  * </p>
  */
 public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     * 默认生产者的实现类，其中封装了Broker的各种API
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
 
@@ -70,6 +72,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * </p>
      *
      * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
+     *
+     * 生产者组名，这是一个必须传递的参数。RocketMQ-way表示同一个生产者组中的生产者实例行为需要一致。
      */
     private String producerGroup;
 
@@ -85,11 +89,13 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Timeout for sending messages.
+     * 发送超时时间，单位为ms
      */
     private int sendMsgTimeout = 3000;
 
     /**
      * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
+     * 消息体的容量上限，超过该上限时消息体会通过ZIP进行压缩，该值默认为4MB。
      */
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
@@ -98,6 +104,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * </p>
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
+     * 同步发送失败后重试的次数。默认为2次，也就是说，一共有3次发送机会。
      */
     private int retryTimesWhenSendFailed = 2;
 
@@ -106,6 +113,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * </p>
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
+     *
+     * 异步发送失败后重试的次数。默认为2次。
      */
     private int retryTimesWhenSendAsyncFailed = 2;
 
@@ -207,6 +216,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @throws RemotingException if there is any network-tier error.
      * @throws MQBrokerException if there is any error with broker.
      * @throws InterruptedException if the sending thread is interrupted.
+     *
+     * 调用defaultMQProducerImpl.send（）方法发送消息
      */
     @Override
     public SendResult send(
@@ -264,6 +275,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @throws MQClientException if there is any client error.
      * @throws RemotingException if there is any network-tier error.
      * @throws InterruptedException if the sending thread is interrupted.
+     * 异步发送普通消息（超时设置）。
      */
     @Override
     public void send(Message msg, SendCallback sendCallback, long timeout)
@@ -503,7 +515,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Search consume queue offset of the given time stamp.
-     *
+     * 根据时间戳从队列中查找其偏移量。
      * @param mq Instance of MessageQueue
      * @param timestamp from when in milliseconds.
      * @return Consume queue offset.
@@ -516,7 +528,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query maximum offset of the given message queue.
-     *
+     * 查找该消息队列中最大的物理偏移量。
      * @param mq Instance of MessageQueue
      * @return maximum offset of the given consume queue.
      * @throws MQClientException if there is any client error.
@@ -528,7 +540,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query minimum offset of the given message queue.
-     *
+     * 查找该消息队列中最小物理偏移量。
      * @param mq Instance of MessageQueue
      * @return minimum offset of the given message queue.
      * @throws MQClientException if there is any client error.
@@ -552,7 +564,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query message of the given offset message ID.
-     *
+     * 根据消息偏移量查找消息。
      * @param offsetMsgId message id
      * @return Message specified.
      * @throws MQBrokerException if there is any broker error.
@@ -568,7 +580,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query message by key.
-     *
+     * 根据条件查询消息。
      * @param topic message topic
      * @param key message key index word
      * @param maxNum max message number
@@ -586,7 +598,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query message of the given message ID.
-     *
+     * 根据主题与消息ID查找消息。
      * @param topic Topic
      * @param msgId Message ID
      * @return Message specified.

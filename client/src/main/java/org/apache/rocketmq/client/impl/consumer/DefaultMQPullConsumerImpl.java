@@ -532,18 +532,21 @@ public class DefaultMQPullConsumerImpl implements MQConsumerInner {
     }
 
     public synchronized void start() throws MQClientException {
+        //最初创建defaultMQPullConsumerImpl时的状态为ServiceState.CREATE_JUST，
         switch (this.serviceState) {
             case CREATE_JUST:
+                //然后设置消费者的默认启动状态为失败。
                 this.serviceState = ServiceState.START_FAILED;
-
+                //检查消费者的配置比，如消费者组名、消费类型、Queue分配策略等参数是否符合规范；
                 this.checkConfig();
-
+                //将订阅关系数据发给Rebalance服务对象
                 this.copySubscription();
-
+                //校验消费者实例名，如果是默认的名字，则更改为当前的程序进程id。
                 if (this.defaultMQPullConsumer.getMessageModel() == MessageModel.CLUSTERING) {
                     this.defaultMQPullConsumer.changeInstanceNameToPID();
                 }
 
+                //获取一个 MQClientInstance，如果 MQClientInstance 已经初始化，则直接返回已初始化的实例。这是核心对象，每个clientId缓存一个实例。
                 this.mQClientFactory = MQClientManager.getInstance().getAndCreateMQClientInstance(this.defaultMQPullConsumer, this.rpcHook);
 
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPullConsumer.getConsumerGroup());
@@ -551,11 +554,14 @@ public class DefaultMQPullConsumerImpl implements MQConsumerInner {
                 this.rebalanceImpl.setAllocateMessageQueueStrategy(this.defaultMQPullConsumer.getAllocateMessageQueueStrategy());
                 this.rebalanceImpl.setmQClientFactory(this.mQClientFactory);
 
+                //对 Broker API 的封装类 pullAPIWrapper进行初始化，同时注册消息，过滤filter。
                 this.pullAPIWrapper = new PullAPIWrapper(
                     mQClientFactory,
                     this.defaultMQPullConsumer.getConsumerGroup(), isUnitMode());
                 this.pullAPIWrapper.registerFilterMessageHook(filterMessageHookList);
 
+                //初始化位点管理器，并加载位点信息。位点管理器分为本地管理和远程管理两种，
+                // 集群消费时消费位点保存在 Broker 中，由远程管理器管理；广播消费时位点存储在本地，由本地管理器管理。
                 if (this.defaultMQPullConsumer.getOffsetStore() != null) {
                     this.offsetStore = this.defaultMQPullConsumer.getOffsetStore();
                 } else {
@@ -574,6 +580,7 @@ public class DefaultMQPullConsumerImpl implements MQConsumerInner {
 
                 this.offsetStore.load();
 
+                // 本地注册消费者实例，如果注册成功，则表示消费者启动成功。
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPullConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -583,6 +590,7 @@ public class DefaultMQPullConsumerImpl implements MQConsumerInner {
                         null);
                 }
 
+                // 启动MQClientInstance实例
                 mQClientFactory.start();
                 log.info("the consumer [{}] start OK", this.defaultMQPullConsumer.getConsumerGroup());
                 this.serviceState = ServiceState.RUNNING;

@@ -21,12 +21,17 @@ import org.apache.rocketmq.common.message.MessageQueue;
 
 /**
  * Strategy Algorithm for message allocating between consumers
+ * AllocateMessageQueueAveragely：平均分配，也是默认使用的策略（强烈推荐）。
+ * AllocateMessageQueueAveragelyByCircle：环形分配策略。
+ * AllocateMessageQueueByConfig：手动配置。
+ * AllocateMessageQueueConsistentHash：一致性Hash分配。
+ * AllocateMessageQueueByMachineRoom：机房分配策略。
  */
 public interface AllocateMessageQueueStrategy {
 
     /**
      * Allocating by consumer id
-     *
+     * 执行队列分配操作，该方法必须满足全部队列都能被分配到消费者。
      * @param consumerGroup current consumer group
      * @param currentCID current consumer id
      * @param mqAll message queue set in current topic
