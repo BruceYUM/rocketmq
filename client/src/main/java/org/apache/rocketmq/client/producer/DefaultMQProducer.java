@@ -84,7 +84,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Number of queues to create per default topic.
-     */
+     * MARK TopicQueue数量以及在各个 Broker 上的分布情况？
+    */
     private volatile int defaultTopicQueueNums = 4;
 
     /**
@@ -137,7 +138,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Constructor specifying both producer group and RPC hook.
-     *
+     * MARK RPC Hook 机制不清楚？？？
      * @param producerGroup Producer group, see the name-sake field.
      * @param rpcHook RPC hook to execute per each remoting command execution.
      */

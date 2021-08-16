@@ -83,23 +83,26 @@ import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 /**
- * MQClientInstance封装了RocketMQ网络处理API，是消息生产者（Producer）、消息消费者（Consumer）与NameServer、Broker打交道的网络通道。
+ * MQClientInstance 封装了RocketMQ 网络处理API，
+ * 是消息生产者（Producer）、消息消费者（Consumer）与NameServer、Broker打交道的网络通道。
  */
 public class MQClientInstance {
     private final static long LOCK_TIMEOUT_MILLIS = 3000;
     private final InternalLogger log = ClientLogger.getLog();
     private final ClientConfig clientConfig;
+    // MARK 没看到有什么用
     private final int instanceIndex;
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
-    //当前MQClient实例的全部生产者的内部实例。
+    //当前MQClient实例的全部生产者的内部实例。DefaultMQProducerImpl
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
-    //当前client实例的全部消费者的内部实例。
+    //当前client实例的全部消费者的内部实例。DefaultMQPullConsumerImpl or DefaultMQPushConsumerImpl
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
-    //当前client实例的全部管理实例。
+    //当前client实例的全部管理实例。DefaultMQAdminExtImpl
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
+    //MARK
     private final NettyClientConfig nettyClientConfig;
-    //其实每个client也是一个Netty Server，也会支持Broker访问，这里实现了全部client支持的接口
+    //MARK 其实每个client也是一个Netty Server，也会支持Broker访问，这里实现了全部client支持的接口
     private final MQClientAPIImpl mQClientAPIImpl;
     //管理接口的本地实现类。
     private final MQAdminImpl mQAdminImpl;
@@ -120,18 +123,20 @@ public class MQClientInstance {
             return new Thread(r, "MQClientFactoryScheduledThread");
         }
     });
-    //请求的处理器
+    //MARK 请求的处理器？客户端请求处理器，处理什么？？
     private final ClientRemotingProcessor clientRemotingProcessor;
-    //Pull消息服务，用于消费者
+    //Pull消息服务线程，用于消费者
     private final PullMessageService pullMessageService;
-    //重新平衡服务，用于消费者定期执行重新平衡方法this.mqClientFactory.doRebalance（）
+    //重新平衡服务线程，用于消费者定期执行重新平衡方法this.mqClientFactory.doRebalance（）
     private final RebalanceService rebalanceService;
+    //生产者实例
     private final DefaultMQProducer defaultMQProducer;
     //消费监控。比如拉取RT（Response Time，响应时间）、
     // 拉取TPS（Transactions Per Second，每秒处理消息数）、消费RT等都可以统计
     private final ConsumerStatsManager consumerStatsManager;
     private final AtomicLong sendHeartbeatTimesTotal = new AtomicLong(0);
     private ServiceState serviceState = ServiceState.CREATE_JUST;
+    //MARK 怎么会有datagramSocket?这不是UDP Socket?
     private DatagramSocket datagramSocket;
     private Random random = new Random();
 
@@ -173,8 +178,8 @@ public class MQClientInstance {
             MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
     }
 
-    //循环遍历路由信息的QueueData信息，如果队列没有写权限，则继续遍历下一个QueueData；根据brokerName找到brokerData信息，
-    // 找不到或没有找到Master节点，则遍历下一个QueueData；根据写队列个数，根据topic+序号创建MessageQueue，填充topicPublishInfo的List<QuueMessage>
+    // 循环遍历路由信息的QueueData信息，如果队列没有写权限，则继续遍历下一个QueueData；根据brokerName找到brokerData信息，
+    // 找不到或没有找到Master节点，则遍历下一个QueueData；根据写队列个数，根据topic+序号创建MessageQueue，填充topicPublishInfo的List<QueueMessage>
     public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
         TopicPublishInfo info = new TopicPublishInfo();
         info.setTopicRouteData(route);
@@ -238,7 +243,7 @@ public class MQClientInstance {
 
         return mqList;
     }
-
+    // KEYPOINT
     public void start() throws MQClientException {
 
         synchronized (this) {
@@ -257,7 +262,7 @@ public class MQClientInstance {
                     this.pullMessageService.start();
                     // Start rebalance service
                     this.rebalanceService.start();
-                    // Start push service
+                    // Start push service MARK 为什么这里要启动Producer???
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
@@ -958,7 +963,8 @@ public class MQClientInstance {
     }
 
     /**
-     * 在本地注册一个生产者。
+     * 在本地注册一个生产者：
+     * 将传入的producer放入生产者组与生产者的映射关系中
      * @param group
      * @param producer
      * @return

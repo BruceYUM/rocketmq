@@ -373,7 +373,7 @@ public class DefaultMQPullConsumer extends ClientConfig implements MQPullConsume
     }
 
     /**
-     * 如果消费发送失败，则可以将消息重新发回给 Broker，这个消费者组延迟一段时间后可以再消费（也就是重试）。
+     * KEYPOINT 如果消费发送失败，则可以将消息重新发回给 Broker，这个消费者组延迟一段时间后可以再消费（也就是重试）。
      * @param msg
      * @param delayLevel
      * @param brokerName

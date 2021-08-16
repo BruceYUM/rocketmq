@@ -24,22 +24,32 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+/**
+ * 索引文件：topic到commitLog的映射
+ * 该文件可以看成是Commitlog关于消息消费的“索引”文件，consumequeue的第一级目录为消息主题，第二级目录为主题的消息队列
+ * commitLog offset/ size/ tag HashCode
+ * ConsumeQueue如何构建，又是如何通过ConsumeQueue查找CommitLog中的消息
+ */
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     public static final int CQ_STORE_UNIT_SIZE = 20;
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
-
+    //消息存储实现类
     private final DefaultMessageStore defaultMessageStore;
-
+    //CommitLog管理类，这里新增了一个MappedQueue用于管理ConsumeQueue??
     private final MappedFileQueue mappedFileQueue;
+    //主题
     private final String topic;
+    //队列ID
     private final int queueId;
     private final ByteBuffer byteBufferIndex;
 
     private final String storePath;
     private final int mappedFileSize;
+    // 物理偏移量
     private long maxPhysicOffset = -1;
+    // 逻辑偏移量
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
 
@@ -60,6 +70,7 @@ public class ConsumeQueue {
             + File.separator + topic
             + File.separator + queueId;
 
+        //MARK mappedFileQueue不是CommitLog的管理器嘛，这里实例化时什么意思？
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
         this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);
@@ -151,14 +162,23 @@ public class ConsumeQueue {
         }
     }
 
+    /**
+     * 根据时间戳定位到物理文件
+     * @param timestamp
+     * @return
+     */
     public long getOffsetInQueueByTime(final long timestamp) {
+        //首先根据时间戳定位到物理文件，这里指的是ConsumeQueue物理文件，而不是CommitLog
         MappedFile mappedFile = this.mappedFileQueue.getMappedFileByTime(timestamp);
         if (mappedFile != null) {
             long offset = 0;
+            //采用二分查找来加速检索,首先计算最低查找偏移量，取消息队列最小偏移量与该文件最小偏移量二者中的最小偏移量为low。
+            // MARK 最小逻辑偏移量，但是mappedFile.getFileFromOffset()应该是ConsumeQueue的物理偏移量呀。
             int low = minLogicOffset > mappedFile.getFileFromOffset() ? (int) (minLogicOffset - mappedFile.getFileFromOffset()) : 0;
             int high = 0;
             int midOffset = -1, targetOffset = -1, leftOffset = -1, rightOffset = -1;
             long leftIndexValue = -1L, rightIndexValue = -1L;
+            //获取当前存储文件中有效的最小消息物理偏移量minPhysicOffset，如果查找到消息偏移量小于该物理偏移量，则结束该查找过程。
             long minPhysicOffset = this.defaultMessageStore.getMinPhyOffset();
             SelectMappedBufferResult sbr = mappedFile.selectMappedBuffer(0);
             if (null != sbr) {
@@ -168,16 +188,17 @@ public class ConsumeQueue {
                     while (high >= low) {
                         midOffset = (low + high) / (2 * CQ_STORE_UNIT_SIZE) * CQ_STORE_UNIT_SIZE;
                         byteBuffer.position(midOffset);
-                        long phyOffset = byteBuffer.getLong();
+                        long phyOffset = byteBuffer.getLong();//获取midOffset处ConsumeQueue中的物理偏移量
                         int size = byteBuffer.getInt();
+                        //如果得到的物理偏移量小于当前的最小物理偏移量，说明待查找的物理偏移量肯定大于midOffset，所以将low设置为midOffset，然后继续折半查找。
+                        //MARK phyOffset是indexFile中间的偏移量，而minPhysicOffset是最小物理偏移量，理论上不是所有偏移量都大于minPhysicOffset???
                         if (phyOffset < minPhysicOffset) {
                             low = midOffset + CQ_STORE_UNIT_SIZE;
                             leftOffset = midOffset;
                             continue;
                         }
-
-                        long storeTime =
-                            this.defaultMessageStore.getCommitLog().pickupStoreTimestamp(phyOffset, size);
+                        //获取minOffset处对应CommitLog物理偏移量处消息的存入时间；
+                        long storeTime = this.defaultMessageStore.getCommitLog().pickupStoreTimestamp(phyOffset, size);
                         if (storeTime < 0) {
                             return 0;
                         } else if (storeTime == timestamp) {
@@ -417,13 +438,22 @@ public class ConsumeQueue {
         this.defaultMessageStore.getRunningFlags().makeLogicsQueueError();
     }
 
+    /**
+     * KEYPOINT ConsumeQueue
+     * @param offset
+     * @param size
+     * @param tagsCode
+     * @param cqOffset
+     * @return
+     */
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
         final long cqOffset) {
 
         if (offset <= this.maxPhysicOffset) {
             return true;
         }
-
+        // 依次将消息偏移量、消息长度、tag hashcode写入到ByteBuffer中，并根据consumeQueueOffset计算ConumeQueue中的物理地址，
+        // 将内容追加到ConsumeQueue的内存映射文件中（本操作只追击并不刷盘）, ConumeQueue的刷盘方式固定为异步刷盘模式。
         this.byteBufferIndex.flip();
         this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE);
         this.byteBufferIndex.putLong(offset);
@@ -482,16 +512,27 @@ public class ConsumeQueue {
         }
     }
 
+    /**
+     * 通过startIndex获取对应ConsumeQueue Buffer;
+     * 通过ConsumeQueue Buffer可以获取ConsumeQueue记录
+     * 通过ConsumeQueue 可以获取消息的物理偏移量
+     * @param startIndex
+     * @return
+     */
     public SelectMappedBufferResult getIndexBuffer(final long startIndex) {
+        //首先startIndex*20得到在consumequeue中的物理偏移量，
         int mappedFileSize = this.mappedFileSize;
         long offset = startIndex * CQ_STORE_UNIT_SIZE;
         if (offset >= this.getMinLogicOffset()) {
+            //则根据偏移量定位到具体的物理文件
             MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset);
             if (mappedFile != null) {
+                //然后通过offset与物理文大小取模获取在该文件的偏移量，从而从偏移量开始连续读取20个字节即可。
                 SelectMappedBufferResult result = mappedFile.selectMappedBuffer((int) (offset % mappedFileSize));
-                return result;
-            }
-        }
+        return result;
+    }
+}
+        //如果该offset小于minLogicOffset，则返回null，说明该消息已被删除
         return null;
     }
 

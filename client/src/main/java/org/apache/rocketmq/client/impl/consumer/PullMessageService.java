@@ -100,7 +100,8 @@ public class PullMessageService extends ServiceThread {
 
         while (!this.isStopped()) {
             try {
-                //从pullRequestQueue中获取一个PullRequest消息拉取任务，如果pullRequest Queue为空，则线程将阻塞，直到有拉取任务被放入。
+                // 从pullRequestQueue中获取一个PullRequest消息拉取任务，如果pullRequest Queue为空，则线程将阻塞，直到有拉取任务被放入。
+                // 每个Consumer 会负责部分 pullRequest, pullRequest对应消费者组，topic等，通过重负载均服务将pullRequest添加到 pullRequestQueue
                 PullRequest pullRequest = this.pullRequestQueue.take();
                 this.pullMessage(pullRequest);
             } catch (InterruptedException ignored) {

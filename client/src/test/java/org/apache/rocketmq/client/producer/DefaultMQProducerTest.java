@@ -88,9 +88,10 @@ public class DefaultMQProducerTest {
         message = new Message(topic, new byte[] {'a'});
         zeroMsg = new Message(topic, new byte[] {});
         bigMessage = new Message(topic, "This is a very huge message!".getBytes());
-
+        // KEYPOINT 生产者启动流程入口
         producer.start();
 
+        // 将 MOCK 的对象注入到 DefaultMQProducerImpl 相应属性中，其实可以使用Spring的注入工具；
         Field field = DefaultMQProducerImpl.class.getDeclaredField("mQClientFactory");
         field.setAccessible(true);
         field.set(producer.getDefaultMQProducerImpl(), mQClientFactory);
@@ -125,6 +126,7 @@ public class DefaultMQProducerTest {
         }
     }
 
+    // 没有设置nameServ的单测
     @Test
     public void testSendMessage_NoNameSrv() throws RemotingException, InterruptedException, MQBrokerException {
         when(mQClientAPIImpl.getNameServerAddressList()).thenReturn(new ArrayList<String>());

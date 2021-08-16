@@ -123,7 +123,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * 20131223171201<br>
      * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
      * Default backtracking consumption time Half an hour ago.
-     * ：表示从哪一时刻开始消费，格式为yyyyMMDDHHmmss，默认为半小时前。
+     * 表示从哪一时刻开始消费，格式为yyyyMMDDHHmmss，默认为半小时前。
      */
     private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
 
@@ -141,12 +141,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Message listener
-     * 消息Push回调监听器。
+     * MARK 消息Push回调监听器，没看到怎么用呀？？
      */
     private MessageListener messageListener;
 
     /**
-     * Offset Storage
+     * MARK Offset Storage
      */
     private OffsetStore offsetStore;
 
@@ -177,7 +177,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
      * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
-     * 一个 Queue 能缓存的最大消息数。超过该值则采取拉取流控措施。
+     * MARK 一个 Queue 能缓存的最大消息数。超过该值则采取拉取流控措施。
      */
     private int pullThresholdForQueue = 1000;
 

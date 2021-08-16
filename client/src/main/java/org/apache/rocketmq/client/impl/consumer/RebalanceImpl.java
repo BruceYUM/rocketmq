@@ -45,7 +45,8 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
  */
 public abstract class RebalanceImpl {
     protected static final InternalLogger log = ClientLogger.getLog();
-    //记 录MessageQueue和 ProcessQueue的关系。MessageQueue可以简单地理解为 ConsumeQueue的客户端实现；ProcessQueue是保存Pull消息的本地容器。
+    //记 录MessageQueue和 ProcessQueue的关系。MessageQueue可以简单地理解为 ConsumeQueue的客户端实现；
+    // ProcessQueue是保存Pull消息的本地容器。
     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
     //Topic路由信息。保存Topic和MessageQueue的关系。
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable =

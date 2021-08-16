@@ -104,6 +104,11 @@ public abstract class ServiceThread implements Runnable {
         }
     }
 
+    /**
+     * this.waitForRunning（）方法是RocketMQ通过自定义锁实现的线程等待，如果没有通知过刷盘线程，则调用waitPoint.reset（）方法重置count，
+     * 调用waitPoint.await（）方法让当前刷盘线程等待interval时间（或者被唤醒）后，再执行刷盘
+     * @param interval
+     */
     protected void waitForRunning(long interval) {
         if (hasNotified.compareAndSet(true, false)) {
             this.onWaitEnd();

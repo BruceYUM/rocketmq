@@ -33,7 +33,7 @@ public class ClientConfig {
     private String clientIP = RemotingUtil.getLocalAddress();
     //实例名，每个实例都需要取唯一的名字，因为有时我们会在同一个机器上部署多个程序进程，如果名字有重复就会导致启动失败。
     private String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
-    //客户端回调线程数。该参数表示 Netty通信层回调线程的个数
+    //客户端回调线程数。MARK 该参数表示 Netty通信层回调线程的个数
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
     /**
      * Pulling topic information interval from the named server
@@ -47,7 +47,7 @@ public class ClientConfig {
     private int heartbeatBrokerInterval = 1000 * 30;
     /**
      * Offset persistent interval for consumer
-     * 持久化消费位点时间间隔，单位为 ms，默认为5000ms。
+     * MARK 持久化消费位点时间间隔，单位为 ms，默认为5000ms。
      */
     private int persistConsumerOffsetInterval = 1000 * 5;
     private boolean unitMode = false;

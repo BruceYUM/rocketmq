@@ -44,17 +44,21 @@ public class ProcessQueue {
     private final static long PULL_MAX_IDLE_TIME = Long.parseLong(System.getProperty("rocketmq.client.pull.pullMaxIdleTime", "120000"));
     private final InternalLogger log = ClientLogger.getLog();
     private final ReadWriteLock lockTreeMap = new ReentrantReadWriteLock();
-    //消息存储容器，键为消息在ConsumeQueue中的偏移量，MessageExt：消息实体。
+    //key是消息物理位点值，value是消息对象，该容器是ProcessQueue用来缓存本地顺序消息的，保存的数据是按照key（就是物理位点值）顺序排列的。
     private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong msgCount = new AtomicLong();
     private final AtomicLong msgSize = new AtomicLong();
     private final Lock lockConsume = new ReentrantLock();
     /**
      * A subset of msgTreeMap, will only be used when orderly consume
+     * key是消息物理位点值，Value 是消息对象，保存当前正在处理的顺序消息集合，是 msgTreeMap的一个子集。
+     * 保存的数据是按照key（就是物理位点值）顺序排列的。
      */
     private final TreeMap<Long, MessageExt> consumingMsgOrderlyTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong tryUnlockTimes = new AtomicLong(0);
+    // 当前ProcessQueue中包含的最大队列偏移量。
     private volatile long queueOffsetMax = 0L;
+    // 当前ProccesQueue是否被丢弃。
     private volatile boolean dropped = false;
     private volatile long lastPullTimestamp = System.currentTimeMillis();
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
@@ -173,7 +177,8 @@ public class ProcessQueue {
         return dispatchToConsume;
     }
 
-    //获取当前消息最大间隔。
+    //获取当前消息最大间隔。getMaxSpan（）/ 20并不能说明Procequeue中包含的消息个数，
+    // 但是能说明当前处理队列中第一条消息与最后一条消息的偏移量已经超过的消息个数。
     public long getMaxSpan() {
         try {
             this.lockTreeMap.readLock().lockInterruptibly();
@@ -307,7 +312,7 @@ public class ProcessQueue {
             log.error("makeMessageToCosumeAgain exception", e);
         }
     }
-
+    // KEYPOINT 顺序消费获取顺序消息；
     public List<MessageExt> takeMessags(final int batchSize) {
         List<MessageExt> result = new ArrayList<MessageExt>(batchSize);
         final long now = System.currentTimeMillis();
@@ -316,6 +321,8 @@ public class ProcessQueue {
             this.lastConsumeTimestamp = now;
             try {
                 if (!this.msgTreeMap.isEmpty()) {
+                    // msgTreeMap 中获取 batchSize 数量的消息放入 consumingMsgOrderlyTreeMap中，并返回给用户消费。
+                    // 由于当前的 MessageQueue 是被 synchronized 锁住的，并且获取的消费所以消费时用户能按照物理位点顺序消费消息。
                     for (int i = 0; i < batchSize; i++) {
                         Map.Entry<Long, MessageExt> entry = this.msgTreeMap.pollFirstEntry();
                         if (entry != null) {

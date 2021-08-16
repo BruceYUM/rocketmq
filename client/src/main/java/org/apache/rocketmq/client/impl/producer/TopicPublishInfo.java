@@ -27,7 +27,7 @@ public class TopicPublishInfo {
     private boolean orderTopic = false;                                     //是否是顺序消息。
     private boolean haveTopicRouterInfo = false;
     private List<MessageQueue> messageQueueList = new ArrayList<MessageQueue>();        //该主题队列的消息队列。
-    private volatile ThreadLocalIndex sendWhichQueue = new ThreadLocalIndex();//每选择一次消息队列，该值会自增1，如果Integer.MAX_VALUE，则重置为0，用于选择消息队列。
+    private volatile ThreadLocalIndex sendWhichQueue = new ThreadLocalIndex();//MARK ???每选择一次消息队列，该值会自增1，如果Integer.MAX_VALUE，则重置为0，用于选择消息队列。
     private TopicRouteData topicRouteData;                                   //topic队列元数据。
 
     public boolean isOrderTopic() {

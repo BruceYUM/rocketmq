@@ -79,7 +79,8 @@ public class MappedFileQueue {
     }
 
     /**
-     * 从MappedFile列表中第一个文件开始查找，找到第一个最后一次更新时间大于待查找时间戳的文件，如果不存在，则返回最后一个MappedFile文件
+     * 从MappedFile列表中第一个文件开始查找，找到第一个最后一次更新时间大于待查找时间戳的文件，
+     * 如果不存在，则返回最后一个MappedFile文件
      * @param timestamp
      * @return
      */
@@ -168,8 +169,9 @@ public class MappedFileQueue {
                 }
 
                 try {
+                    //如果文件大小与配置文件的单个文件大小不一致，将忽略该目录下所有文件，然后创建MappedFile对象
                     MappedFile mappedFile = new MappedFile(file.getPath(), mappedFileSize);
-
+                    //注意load方法将wrotePosition、flushedPosition、committedPosition三个指针都设置为文件大小。
                     mappedFile.setWrotePosition(this.mappedFileSize);
                     mappedFile.setFlushedPosition(this.mappedFileSize);
                     mappedFile.setCommittedPosition(this.mappedFileSize);
@@ -212,6 +214,7 @@ public class MappedFileQueue {
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
+        // MARK KEYPOINT 新建MappedFile
         if (createOffset != -1 && needCreate) {
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
             String nextNextFilePath = this.storePath + File.separator
@@ -316,6 +319,10 @@ public class MappedFileQueue {
         return 0;
     }
 
+    /**
+     * 获取最后一个MappedFile存储文件当前的写指针
+     * @return
+     */
     public long getMaxWrotePosition() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {
@@ -482,18 +489,22 @@ public class MappedFileQueue {
                         this.mappedFileSize,
                         this.mappedFiles.size());
                 } else {
+                    //直接使用offset%-mappedFileSize是否可行？答案是否定的，由于使用了内存映射，只要存在于存储目录下的文件，都需要对应创建内存映射文件，
+                    // 如果不定时将已消费的消息从存储文件中删除，会造成极大的内存压力与资源浪费，所有RocketMQ采取定时删除存储文件的策略，
+                    // 也就是说在存储文件中，第一个文件不一定是00000000000000000000，因为该文件在某一时刻会被删除，故根据offset定位MappedFile的算法为
+                    // （int）（（offset / this.mappedFileSize）-（mappedFile.getFileFromOffset（）/this.MappedFileSize））
                     int index = (int) ((offset / this.mappedFileSize) - (firstMappedFile.getFileFromOffset() / this.mappedFileSize));
                     MappedFile targetFile = null;
                     try {
                         targetFile = this.mappedFiles.get(index);
                     } catch (Exception ignored) {
                     }
-
+                    //判断待查找偏移量在目标文件偏移量内
                     if (targetFile != null && offset >= targetFile.getFileFromOffset()
                         && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
                         return targetFile;
                     }
-
+                    //没有找到则遍历所有mappedFile查找
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
                         if (offset >= tmpMappedFile.getFileFromOffset()
                             && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {

@@ -274,7 +274,9 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                 case SUSPEND_CURRENT_QUEUE_A_MOMENT:
                     this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), msgs.size());
                     if (checkReconsumeTimes(msgs)) {
+                        // 将消息从 consumingMsgOrderlyTreeMap 中删除，再重新放入本地缓存队列msgTreeMap中
                         consumeRequest.getProcessQueue().makeMessageToCosumeAgain(msgs);
+                        // 定时任务将消费失败的消息在延迟一定时间后，重新提交到消费线程池。
                         this.submitConsumeRequestLater(
                             consumeRequest.getProcessQueue(),
                             consumeRequest.getMessageQueue(),
@@ -437,7 +439,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
                         final int consumeBatchSize =
                             ConsumeMessageOrderlyService.this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
-
+                        // 从 processQueue 获取消息，processQueue中的消息在 processQueue.putMessage(pullResult.getMsgFoundList());设置
                         List<MessageExt> msgs = this.processQueue.takeMessags(consumeBatchSize);
                         if (!msgs.isEmpty()) {
                             final ConsumeOrderlyContext context = new ConsumeOrderlyContext(this.messageQueue);
@@ -467,7 +469,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                                         this.messageQueue);
                                     break;
                                 }
-
+                                // 传递给用户的msgs是从processQueue获取的；
                                 status = messageListener.consumeMessage(Collections.unmodifiableList(msgs), context);
                             } catch (Throwable e) {
                                 log.warn("consumeMessage exception: {} Group: {} Msgs: {} MQ: {}",
@@ -522,6 +524,10 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                             ConsumeMessageOrderlyService.this.getConsumerStatsManager()
                                 .incConsumeRT(ConsumeMessageOrderlyService.this.consumerGroup, messageQueue.getTopic(), consumeRT);
 
+                            // 消息结果处理：包含消费指标统计、消费重试处理和消费位点处理。
+                            // 消费指标主要是对消费成功和失败的TPS的统计；
+                            // 消费重试处理主要将消费重试次数加1；
+                            // 消费位点处理主要根据消费结果更新消费位点记录。
                             continueConsume = ConsumeMessageOrderlyService.this.processConsumeResult(msgs, status, context, this);
                         } else {
                             continueConsume = false;
