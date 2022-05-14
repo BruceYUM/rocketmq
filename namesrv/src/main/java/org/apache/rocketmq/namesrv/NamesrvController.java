@@ -74,36 +74,27 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
-
+        // KV配置管理：增删，load，persist，没有什么卵用
         this.kvConfigManager.load();
-
+        // netty server
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
-
+        // 执行DefaultProcessor的线程池
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
-
+        // MARK registerDefaultProcessor，NettyServer会根据RequestCode从所有注册的Processor Map中获取对应的请求处理器。
         this.registerProcessor();
 
-        //定时任务1:NameServer每隔10s扫描一次Broker，移除处于不激活状态的Broker。
-        //Broker启动时向集群中所有的NameServer发送心跳语句，每隔30s向集群中所有NameServer发送心跳包，
-        // NameServer收到Broker心跳包时会更新brokerLiveTable缓存中BrokerLiveInfo的lastUpdate Timestamp，
-        // 然后Name Server每隔10s扫描brokerLiveTable，如果连续120s没有收到心跳包，NameServer将移除该Broker的路由信息同时关闭Socket连接。
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-
-            @Override
-            public void run() {
-                NamesrvController.this.routeInfoManager.scanNotActiveBroker();
-            }
-        }, 5, 10, TimeUnit.SECONDS);
+        // 定时任务1:NameServer 每隔 10s 扫描一次Broker，移除处于不激活状态的Broker。
+        //  Broker 启动时向集群中所有的NameServer发送心跳语句，每隔30s向集群中所有NameServer发送心跳包，
+        //  NameServer收到Broker心跳包时会更新brokerLiveTable缓存中BrokerLiveInfo的lastUpdate Timestamp，
+        //  然后NameServer每隔10s扫描brokerLiveTable，如果连续120s没有收到心跳包，NameServer将移除该Broker的路由信息同时关闭Socket连接。
+        this.scheduledExecutorService.scheduleAtFixedRate(() ->
+                NamesrvController.this.routeInfoManager.scanNotActiveBroker(),
+                5, 10, TimeUnit.SECONDS);
 
         // 定时任务2:nameServer每隔10分钟打印一次KV配置。
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-
-            @Override
-            public void run() {
-                NamesrvController.this.kvConfigManager.printAllPeriodically();
-            }
-        }, 1, 10, TimeUnit.MINUTES);
+        this.scheduledExecutorService.scheduleAtFixedRate(() ->
+                NamesrvController.this.kvConfigManager.printAllPeriodically(), 1, 10, TimeUnit.MINUTES);
 
         if (TlsSystemConfig.tlsMode != TlsMode.DISABLED) {
             // Register a listener to reload SslContext

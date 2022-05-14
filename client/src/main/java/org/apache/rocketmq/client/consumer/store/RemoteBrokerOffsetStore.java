@@ -38,11 +38,15 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
  * Remote storage implementation
+ * 同一个消费组内的所有消息消费者共享消息主题下的所有消息，同一条消息（同一个消息消费队列）在同一时间只会被消费组内的一个消费者消费，
+ * 并且随着消费队列的动态变化重新负载，所以消费进度需要保存在 Broker。
+ * 一次消息消费后会从ProceeQueue处理队列中移除该批消息，返回ProceeQueue最小偏移量，并存入消息进度表中
  */
 public class RemoteBrokerOffsetStore implements OffsetStore {
     private final static InternalLogger log = ClientLogger.getLog();
     private final MQClientInstance mQClientFactory;
     private final String groupName;
+    // 消息消费进度（内存）
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();
 
@@ -55,6 +59,7 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     public void load() {
     }
 
+    // 更新本地消费进度缓存
     @Override
     public void updateOffset(MessageQueue mq, long offset, boolean increaseOnly) {
         if (mq != null) {
@@ -111,6 +116,7 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         return -1;
     }
 
+    // 定时任务调用：将本地消费位点持久化到Broker中。
     @Override
     public void persistAll(Set<MessageQueue> mqs) {
         if (null == mqs || mqs.isEmpty())
@@ -148,6 +154,7 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         }
     }
 
+    // 将本地消费位点持久化到Broker中。
     @Override
     public void persist(MessageQueue mq) {
         AtomicLong offset = this.offsetTable.get(mq);
@@ -189,6 +196,7 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     /**
      * Update the Consumer Offset in one way, once the Master is off, updated to Slave,
      * here need to be optimized.
+     * 将本地消费位点持久化到Broker中。
      */
     private void updateConsumeOffsetToBroker(MessageQueue mq, long offset) throws RemotingException,
         MQBrokerException, InterruptedException, MQClientException {
@@ -198,10 +206,12 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     /**
      * Update the Consumer Offset synchronously, once the Master is off, updated to Slave,
      * here need to be optimized.
+     * 将本地消费位点持久化到Broker中。
      */
     @Override
     public void updateConsumeOffsetToBroker(MessageQueue mq, long offset, boolean isOneway) throws RemotingException,
         MQBrokerException, InterruptedException, MQClientException {
+        // 获取 Broker 地址
         FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
         if (null == findBrokerResult) {
 

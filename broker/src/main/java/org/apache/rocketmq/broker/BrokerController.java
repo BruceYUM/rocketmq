@@ -295,7 +295,7 @@ public class BrokerController {
             this.consumerManageExecutor =
                 Executors.newFixedThreadPool(this.brokerConfig.getConsumerManageThreadPoolNums(), new ThreadFactoryImpl(
                     "ConsumerManageThread_"));
-
+            // 注册处理器
             this.registerProcessor();
 
             final long initialDelay = UtilAll.computNextMorningTimeMillis() - System.currentTimeMillis();
@@ -756,14 +756,15 @@ public class BrokerController {
     }
 
     public void start() throws Exception {
+        // 存储层服务，比如CommitLog、ConsumeQueue存储管理。
         if (this.messageStore != null) {
             this.messageStore.start();
         }
-
+        // 普通通道请求处理服务。一般的请求都是在这里被处理的。
         if (this.remotingServer != null) {
             this.remotingServer.start();
         }
-
+        // VIP 通道请求处理服务。如果普通通道比较忙，那么可以使用VIP通道，一般作为客户端降级使用。
         if (this.fastRemotingServer != null) {
             this.fastRemotingServer.start();
         }
@@ -771,46 +772,42 @@ public class BrokerController {
         if (this.fileWatchService != null) {
             this.fileWatchService.start();
         }
-
+        // Broker 访问对外接口的封装对象
         if (this.brokerOuterAPI != null) {
             this.brokerOuterAPI.start();
         }
-
+        // Pull长轮询服务
         if (this.pullRequestHoldService != null) {
             this.pullRequestHoldService.start();
         }
-
+        // Client 探活：清理心跳超时的生产者、消费者、过滤服务器。
         if (this.clientHousekeepingService != null) {
             this.clientHousekeepingService.start();
         }
-
+        // 过滤服务器管理
         if (this.filterServerManager != null) {
             this.filterServerManager.start();
         }
 
         this.registerBrokerAll(true, false, true);
 
-        //定时任务，每个30s(默认)向namesrv发送心跳包
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-
-            @Override
-            public void run() {
-                try {
-                    BrokerController.this.registerBrokerAll(true, false, brokerConfig.isForceRegister());
-                } catch (Throwable e) {
-                    log.error("registerBrokerAll Exception", e);
-                }
+        //MARK 【路由注册 1】定时任务，每隔30s(默认)向namesrv发送心跳包
+        this.scheduledExecutorService.scheduleAtFixedRate(() -> {
+            try {
+                BrokerController.this.registerBrokerAll(true, false, brokerConfig.isForceRegister());
+            } catch (Throwable e) {
+                log.error("registerBrokerAll Exception", e);
             }
         }, 1000 * 10, Math.max(10000, Math.min(brokerConfig.getRegisterNameServerPeriod(), 60000)), TimeUnit.MILLISECONDS);
-
+        // Broker监控数据统计管理
         if (this.brokerStatsManager != null) {
             this.brokerStatsManager.start();
         }
-
+        // 快速失败服务
         if (this.brokerFastFailure != null) {
             this.brokerFastFailure.start();
         }
-
+        // 事务消息回查服务
         if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole()) {
             if (this.transactionalMessageCheckService != null) {
                 log.info("Start transaction service!");
@@ -838,6 +835,7 @@ public class BrokerController {
     }
 
     public synchronized void registerBrokerAll(final boolean checkOrderConfig, boolean oneway, boolean forceRegister) {
+        // MARK TopicConfigManager如何维护的？
         TopicConfigSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().buildTopicConfigSerializeWrapper();
 
         if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission())
@@ -857,6 +855,7 @@ public class BrokerController {
             this.brokerConfig.getBrokerName(),
             this.brokerConfig.getBrokerId(),
             this.brokerConfig.getRegisterBrokerTimeoutMills())) {
+            // MARK
             doRegisterBrokerAll(checkOrderConfig, oneway, topicConfigWrapper);
         }
     }

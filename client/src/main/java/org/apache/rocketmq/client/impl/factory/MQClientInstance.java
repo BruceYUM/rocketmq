@@ -179,7 +179,8 @@ public class MQClientInstance {
     }
 
     // 循环遍历路由信息的QueueData信息，如果队列没有写权限，则继续遍历下一个QueueData；根据brokerName找到brokerData信息，
-    // 找不到或没有找到Master节点，则遍历下一个QueueData；根据写队列个数，根据topic+序号创建MessageQueue，填充topicPublishInfo的List<QueueMessage>
+    // 找不到或没有找到Master节点，则遍历下一个QueueData；
+    // 根据写队列个数，根据topic+序号创建MessageQueue，填充topicPublishInfo的List<QueueMessage>
     public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
         TopicPublishInfo info = new TopicPublishInfo();
         info.setTopicRouteData(route);
@@ -319,7 +320,7 @@ public class MQClientInstance {
             }
         }, 1000, this.clientConfig.getHeartbeatBrokerInterval(), TimeUnit.MILLISECONDS);
 
-        //定时持久化消费位点
+        // KEYPOINT 定时持久化消费位点
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

@@ -195,7 +195,7 @@ public class ProcessQueue {
 
         return 0;
     }
-
+    // 从ProcessQueue中移除这批消息，这里返回的偏移量是移除该批消息后最小的偏移量，
     public long removeMessage(final List<MessageExt> msgs) {
         long result = -1;
         final long now = System.currentTimeMillis();
@@ -214,7 +214,7 @@ public class ProcessQueue {
                         }
                     }
                     msgCount.addAndGet(removedCnt);
-
+                    // 第一条记录的 Key，即最小偏移量
                     if (!msgTreeMap.isEmpty()) {
                         result = msgTreeMap.firstKey();
                     }
@@ -272,7 +272,10 @@ public class ProcessQueue {
         }
     }
 
-    //将msgTreeMapTmp中的消息清除，表示成功处理该批消息。
+    // 将msgTreeMapTmp中的消息清除，表示成功处理该批消息。
+    // 就是将该批消息从ProceeQueue中移除，维护msgCount（消息处理队列中消息条数）并获取消息消费的偏移量offset，
+    // 然后将该批消息从msgTreeMapTemp中移除，并返回待保存的消息消费进度（offset+1），
+    // 从中可以看出offset表示消息消费队列的逻辑偏移量，类似于数组的下标，代表第n个ConsumeQueue条目。
     public long commit() {
         try {
             this.lockTreeMap.writeLock().lockInterruptibly();

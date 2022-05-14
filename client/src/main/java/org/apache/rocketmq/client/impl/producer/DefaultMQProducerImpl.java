@@ -282,6 +282,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     LocalTransactionState localTransactionState = LocalTransactionState.UNKNOW;
                     Throwable exception = null;
                     try {
+                        // 终调用应用程序实现的TransactionListener的checkLocalTransaction方法，返回事务状态
                         localTransactionState = transactionCheckListener.checkLocalTransaction(message);
                     } catch (Throwable e) {
                         log.error("Broker call checkTransactionState, but checkLocalTransactionState exception", e);
@@ -315,13 +316,16 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 thisHeader.setTransactionId(checkRequestHeader.getTransactionId());
                 switch (localTransactionState) {
                     case COMMIT_MESSAGE:
+                        // 如果事务状态为Local-Transaction State#COMMIT_MESSAGE，则向消息服务器发送提交事务消息命令.
                         thisHeader.setCommitOrRollback(MessageSysFlag.TRANSACTION_COMMIT_TYPE);
                         break;
                     case ROLLBACK_MESSAGE:
+                        // 如果事务状态为LocalTransactionState#ROLLBACK_MESSAGE，则向Broker服务器发送回滚事务操作；
                         thisHeader.setCommitOrRollback(MessageSysFlag.TRANSACTION_ROLLBACK_TYPE);
                         log.warn("when broker check, client rollback this transaction, {}", thisHeader);
                         break;
                     case UNKNOW:
+                        // 如果事务状态为UNOWN，则服务端会忽略此次提交。
                         thisHeader.setCommitOrRollback(MessageSysFlag.TRANSACTION_NOT_TYPE);
                         log.warn("when broker check, client does not know this transaction state, {}", thisHeader);
                         break;
@@ -342,7 +346,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 }
             }
         };
-
+        // 任务提交到TransactionMQProducer的线程池中执行
         this.checkExecutor.submit(request);
     }
 
@@ -1190,7 +1194,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             throw new MQClientException("unknown exception", e);
         }
     }
-
+    // 发送事务消息
     public TransactionSendResult sendMessageInTransaction(final Message msg,
                                                           final TransactionListener tranExecuter, final Object arg)
         throws MQClientException {
@@ -1200,14 +1204,17 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         Validators.checkMessage(msg, this.defaultMQProducer);
 
         SendResult sendResult = null;
+        // 首先为消息添加属性，TRAN_MSG和PGROUP，分别表示消息为prepare消息、消息所属消息生产者组。
+        // 设置消息生产者组的目的是在查询事务消息本地事务状态时，从该生产者组中随机选择一个消息生产者即可
         MessageAccessor.putProperty(msg, MessageConst.PROPERTY_TRANSACTION_PREPARED, "true");
         MessageAccessor.putProperty(msg, MessageConst.PROPERTY_PRODUCER_GROUP, this.defaultMQProducer.getProducerGroup());
         try {
+            // 然后通过同步调用方式向RocketMQ发送消息
             sendResult = this.send(msg);
         } catch (Exception e) {
             throw new MQClientException("send message Exception", e);
         }
-
+        // 根据消息发送结果执行相应的操作。
         LocalTransactionState localTransactionState = LocalTransactionState.UNKNOW;
         Throwable localException = null;
         switch (sendResult.getSendStatus()) {
@@ -1220,6 +1227,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     if (null != transactionId && !"".equals(transactionId)) {
                         msg.setTransactionId(transactionId);
                     }
+                    // 如果消息发送成功，则执行TransactionListener#executeLocalTransaction方法，该方法的职责是记录事务消息的本地事务状态
+                    // 例如可以通过将消息唯一ID存储在数据中，并且该方法与业务代码处于同一个事务，与业务事务要么一起成功，要么一起失败。
+                    // 这里是事务消息设计的关键理念之一，为后续的事务状态回查提供唯一依据。
                     localTransactionState = tranExecuter.executeLocalTransaction(msg, arg);
                     if (null == localTransactionState) {
                         localTransactionState = LocalTransactionState.UNKNOW;
@@ -1239,6 +1249,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             case FLUSH_DISK_TIMEOUT:
             case FLUSH_SLAVE_TIMEOUT:
             case SLAVE_NOT_AVAILABLE:
+                // 如果消息发送失败，则设置本次事务状态为LocalTransactionState.ROLLBACK_MESSAGE
                 localTransactionState = LocalTransactionState.ROLLBACK_MESSAGE;
                 break;
             default:
@@ -1246,6 +1257,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
 
         try {
+            // 结束事务。根据第二步返回的事务状态执行提交、回滚或暂时不处理事务。
+            // 1）LocalTransactionState.COMMIT_MESSAGE：提交事务。
+            // 2）LocalTransactionState.COMMIT_MESSAGE：回滚事务。
+            // 3）LocalTransactionState.UNKNOW：结束事务，但不做任何处理。
             this.endTransaction(sendResult, localTransactionState, localException);
         } catch (Exception e) {
             log.warn("local transaction execute " + localTransactionState + ", but end broker transaction failed", e);
@@ -1270,6 +1285,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return send(msg, this.defaultMQProducer.getSendMsgTimeout());
     }
 
+    /**
+     * MARK 事务消息第二阶段：提交或混滚
+     * 根据消息所属的消息队列获取Broker的IP与端口信息，然后发送结束事务命令，
+     * 其关键就是根据本地执行事务的状态分别发送提交、回滚或“不作为”的命令。
+     * Broker服务端的结束事务处理器为：EndTransactionProcessor。
+     * @param sendResult
+     * @param localTransactionState
+     * @param localException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     * @throws UnknownHostException
+     */
     public void endTransaction(
         final SendResult sendResult,
         final LocalTransactionState localTransactionState,
@@ -1281,10 +1309,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             id = MessageDecoder.decodeMessageId(sendResult.getMsgId());
         }
         String transactionId = sendResult.getTransactionId();
+        // 获取 Broker Addr
         final String brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(sendResult.getMessageQueue().getBrokerName());
         EndTransactionRequestHeader requestHeader = new EndTransactionRequestHeader();
         requestHeader.setTransactionId(transactionId);
         requestHeader.setCommitLogOffset(id.getOffset());
+        // 根据本地事务状态发送不同的命令
         switch (localTransactionState) {
             case COMMIT_MESSAGE:
                 requestHeader.setCommitOrRollback(MessageSysFlag.TRANSACTION_COMMIT_TYPE);

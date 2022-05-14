@@ -52,11 +52,14 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
     private static final InternalLogger log = ClientLogger.getLog();
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+    // 消息消费监听器。
     private final MessageListenerConcurrently messageListener;
+    // 消息消费任务队列。
     private final BlockingQueue<Runnable> consumeRequestQueue;
+    // 消息消费线程池。
     private final ThreadPoolExecutor consumeExecutor;
     private final String consumerGroup;
-
+    // 调度任务线程池。
     private final ScheduledExecutorService scheduledExecutorService;
     private final ScheduledExecutorService cleanExpireMsgExecutors;
 
@@ -80,7 +83,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
         this.cleanExpireMsgExecutors = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CleanExpireMsgScheduledThread_"));
     }
-
+    // 定时清除过期消息
     public void start() {
         this.cleanExpireMsgExecutors.scheduleAtFixedRate(new Runnable() {
 
@@ -197,6 +200,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         return result;
     }
 
+    // 将从 Broker 拉取回来的消息封装成 ConsumeRequest 可执行对象，并提交到线程池
     @Override
     public void submitConsumeRequest(
         final List<MessageExt> msgs,    // 并行消费直接将msgs传递给用户消费代码，没有使用processQueue
@@ -212,6 +216,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 this.submitConsumeRequestLater(consumeRequest);
             }
         } else {
+            
             for (int total = 0; total < msgs.size(); ) {
                 List<MessageExt> msgThis = new ArrayList<MessageExt>(consumeBatchSize);
                 for (int i = 0; i < consumeBatchSize; i++, total++) {
@@ -256,7 +261,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         }
     }
 
-    // KEYPOINT
+    // KEYPOINT 处理消费结果
     public void processConsumeResult(
         final ConsumeConcurrentlyStatus status,
         final ConsumeConcurrentlyContext context,
@@ -294,16 +299,20 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 }
                 break;
             case CLUSTERING:
+                // 如果消息发送ACK失败，则直接将本批ACK消费发送失败的消息再次封装为ConsumeRequest，
+                // 然后延迟5s后重新消费。如果ACK消息发送成功，则该消息会延迟消费。
+                // 如果消费失败，ackIndex = -1, 逐条将消息发回 Broker
                 List<MessageExt> msgBackFailed = new ArrayList<MessageExt>(consumeRequest.getMsgs().size());
                 for (int i = ackIndex + 1; i < consumeRequest.getMsgs().size(); i++) {
                     MessageExt msg = consumeRequest.getMsgs().get(i);
                     boolean result = this.sendMessageBack(msg, context);
+                    // 如果发回 Broker 失败，RecunsumeTimes + 1
                     if (!result) {
                         msg.setReconsumeTimes(msg.getReconsumeTimes() + 1);
                         msgBackFailed.add(msg);
                     }
                 }
-
+                // 发回 Broker 失败的消息重新提交给 ConsumeMessageConcurrentlyService
                 if (!msgBackFailed.isEmpty()) {
                     consumeRequest.getMsgs().removeAll(msgBackFailed);
 
@@ -325,7 +334,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         return this.defaultMQPushConsumerImpl.getConsumerStatsManager();
     }
 
-    // 消费失败将消息传回给Broker
+    // 消息重试：消费失败将消息传回给 Broker
     public boolean sendMessageBack(final MessageExt msg, final ConsumeConcurrentlyContext context) {
         int delayLevel = context.getDelayLevelWhenNextConsume();
 
@@ -366,6 +375,9 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         }, 5000, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * 消息消费
+     */
     class ConsumeRequest implements Runnable {
         private final List<MessageExt> msgs;
         private final ProcessQueue processQueue;

@@ -220,12 +220,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             return;
         }
 
-        // 拉取条数、字节数限制检查。
-        // 如果本地缓存消息数量大于配置的最大拉取条数（默认为1000，可以调整），则延迟一段时间再拉取；
-        // 如果本地缓存消息字节数大于配置的最大缓存字节数，则延迟一段时间再拉取。这两种校验方式都相当于本地流控
+        // 拉取条数、字节数限制检查。这两种校验方式都相当于本地流控
         long cachedMessageCount = processQueue.getMsgCount().get();
         long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);
-
+        // 如果本地缓存消息数量大于配置的最大拉取条数（默认为1000，可以调整），则延迟一段时间再拉取；   
         if (cachedMessageCount > this.defaultMQPushConsumer.getPullThresholdForQueue()) {
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
             if ((queueFlowControlTimes++ % 1000) == 0) {
@@ -235,7 +233,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             }
             return;
         }
-
+        // 如果本地缓存消息字节数大于配置的最大缓存字节数，则延迟一段时间再拉取。
         if (cachedMessageSizeInMiB > this.defaultMQPushConsumer.getPullThresholdSizeForQueue()) {
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
             if ((queueFlowControlTimes++ % 1000) == 0) {
@@ -261,7 +259,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 return;
             }
         } else {
-            // MARK 看不懂哇，如果是顺序消费，为什么需要这样？
+            // MARK 如果是顺序消费，会锁定消息队列，保证只有一个消费者在执行
             //如果当前拉取的队列在 Broker 端没有被锁定，说明已经有拉取正在执行，当前拉取请求晚点执行；
             if (processQueue.isLocked()) {
                 //如果不是第一次拉取，需要先计算最新的拉取位点并修正本地最新的待拉取位点信息，再执行拉取
@@ -279,6 +277,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     pullRequest.setNextOffset(offset);
                 }
             } else {
+                // 如果消息处理队列未被锁定，则延迟3s后再将PullRequest对象放入到拉取任务中，如果该处理队列是第一次拉取任务，则首先计算拉取偏移量，然后向消息服务端拉取消息。
                 this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_EXCEPTION);
                 log.info("pull message later because not locked in broker, {}", pullRequest);
                 return;
@@ -324,7 +323,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                                 DefaultMQPushConsumerImpl.this.getConsumerStatsManager().incPullTPS(pullRequest.getConsumerGroup(),
                                     pullRequest.getMessageQueue().getTopic(), pullResult.getMsgFoundList().size());
-                                // MARK 同步消息没有 PullCallback 怎么
+                                
                                 //首先将拉取到的消息存入ProcessQueue，然后将拉取到的消息提交到Consume-MessageService中供消费者消费，
                                 // 该方法是一个异步方法，也就是PullCallBack将消息提交到ConsumeMessageService中就会立即返回
                                 boolean dispatchToConsume = processQueue.putMessage(pullResult.getMsgFoundList());
@@ -387,7 +386,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                     try {
                                         DefaultMQPushConsumerImpl.this.offsetStore.updateOffset(pullRequest.getMessageQueue(),
                                             pullRequest.getNextOffset(), false);
-
+                                        // 拉取非法，会持久化消费进度
                                         DefaultMQPushConsumerImpl.this.offsetStore.persist(pullRequest.getMessageQueue());
 
                                         DefaultMQPushConsumerImpl.this.rebalanceImpl.removeProcessQueue(pullRequest.getMessageQueue());
@@ -526,7 +525,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         doRebalance();
         log.info("resume this consumer, {}", this.defaultMQPushConsumer.getConsumerGroup());
     }
-
+    // 消费失败的消息发送回 Broker
     public void sendMessageBack(MessageExt msg, int delayLevel, final String brokerName)
         throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         try {
@@ -535,6 +534,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             this.mQClientFactory.getMQClientAPIImpl().consumerSendMessageBack(brokerAddr, msg,
                 this.defaultMQPushConsumer.getConsumerGroup(), delayLevel, 5000, getMaxReconsumeTimes());
         } catch (Exception e) {
+            // 消费失败的消息发送异常，则增加 DelayLevel在发回给 Broker
             log.error("sendMessageBack Exception, " + this.defaultMQPushConsumer.getConsumerGroup(), e);
 
             Message newMsg = new Message(MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup()), msg.getBody());

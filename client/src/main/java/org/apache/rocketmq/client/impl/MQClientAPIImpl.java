@@ -958,7 +958,7 @@ public class MQClientAPIImpl {
         return response.getCode() == ResponseCode.SUCCESS;
     }
 
-    // KEYPOINT
+    // KEYPOINT 发送重试消息
     public void consumerSendMessageBack(
         final String addr,
         final MessageExt msg,

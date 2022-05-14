@@ -521,8 +521,8 @@ public class CommitLog {
         String topic = msg.getTopic();
         int queueId = msg.getQueueId();
 
-        // 果消息的延迟级别大于0，将消息的原主题名称与原消息队列ID存入消息属性中，
-        // 用延迟消息主题SCHEDULE_TOPIC、消息队列ID更新原先消息的主题与队列，这是并发消息消费重试关键的一步
+        //  KEYPOINT 如果消息的延迟级别大于0，将消息的原主题名称与原消息队列ID存入消息属性中，
+        // 用延迟消息主题SCHEDULE_TOPIC、消息队列ID更新原先消息的主题与队列，这是并发消息消费重试关键的一步，也是延迟消息的关键步骤
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
             || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
@@ -1255,7 +1255,8 @@ public class CommitLog {
             }
 
             // Transaction messages that require special handling
-            // 事务消息单独处理。这里主要处理Prepared类型和Rollback类型的消息，设置消息queueOffset为0。
+            // MARK 事务消息单独处理。这里主要处理Prepared类型和Rollback类型的消息，设置消息queueOffset为0。而不是其真实的位点值。
+            //  这样，该位点就不会建立Consume Queue索引，自然也不能被消费者消费。
             final int tranType = MessageSysFlag.getTransactionValue(msgInner.getSysFlag());
             switch (tranType) {
                 // Prepared and Rollback message is not consumed, will not enter the

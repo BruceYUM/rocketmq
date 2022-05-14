@@ -117,7 +117,7 @@ public class BrokerOuterAPI {
         final String brokerName,
         final long brokerId,
         final String haServerAddr,
-        final TopicConfigSerializeWrapper topicConfigWrapper,
+        final TopicConfigSerializeWrapper topicConfigWrapper,   //topicConfigWrapper内部封装的是Topic Config-Manager中的topicConfigTable，内部存储的是Broker启动时默认的一些Topic
         final List<String> filterServerList,
         final boolean oneway,
         final int timeoutMills,
@@ -141,7 +141,9 @@ public class BrokerOuterAPI {
             final byte[] body = requestBody.encode(compressed);
             final int bodyCrc32 = UtilAll.crc32(body);
             requestHeader.setBodyCrc32(bodyCrc32);
+            // 同步
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
+            // MARK 【路由注册 2】遍历所有nameServ，注册当前broker的Topic
             for (final String namesrvAddr : nameServerAddressList) {
                 brokerOuterExecutor.execute(new Runnable() {
                     @Override
@@ -171,6 +173,7 @@ public class BrokerOuterAPI {
         return registerBrokerResultList;
     }
 
+    // MARK 【路由注册 3】
     private RegisterBrokerResult registerBroker(
         final String namesrvAddr,
         final boolean oneway,
@@ -184,6 +187,7 @@ public class BrokerOuterAPI {
 
         if (oneway) {
             try {
+                // MARK 通过NettyClient将Broker注册请求发送给NameServer
                 this.remotingClient.invokeOneway(namesrvAddr, request, timeoutMills);
             } catch (RemotingTooMuchRequestException e) {
                 // Ignore

@@ -232,7 +232,7 @@ public class DefaultMessageStore implements MessageStore {
             this.scheduleMessageService.start();
         }
 
-        //Broker服务器在启动时会启动ReputMessageService线程，并初始化一个非常关键的参数reputFfomOffset，
+        // Broker服务器在启动时会启动 ReputMessageService线程，并初始化一个非常关键的参数reputFfomOffset，
         // 该参数的含义是ReputMessageService从哪个物理偏移量开始转发消息给ConsumeQueue和IndexFile。
         // 如果允许重复转发，reputFromOffset设置为CommitLog的提交指针；
         // 如果不允许重复转发，reputFromOffset设置为Commitlog的内存中最大偏移量。
@@ -313,6 +313,7 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    @Override
     public PutMessageResult putMessage(MessageExtBrokerInner msg) {
         //如果当前Broker停止工作则拒绝消息写入
         if (this.shutdown) {
@@ -516,7 +517,7 @@ public class DefaultMessageStore implements MessageStore {
                         final int maxFilterMessageCount = Math.max(16000, maxMsgNums * ConsumeQueue.CQ_STORE_UNIT_SIZE);
                         final boolean diskFallRecorded = this.messageStoreConfig.isDiskFallRecorded();
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
-                        for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {
+                        for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STOR E_UNIT_SIZE) {
                             //ConsumeQueue 读取 20字节就是一条消息相关索引
                             long offsetPy = bufferConsumeQueue.getByteBuffer().getLong();
                             int sizePy = bufferConsumeQueue.getByteBuffer().getInt();
@@ -1098,7 +1099,7 @@ public class DefaultMessageStore implements MessageStore {
 
         return null;
     }
-
+    // 从缓存获取或者创建 ConsumeQueue 并放入缓存
     public ConsumeQueue findConsumeQueue(String topic, int queueId) {
         ConcurrentMap<Integer, ConsumeQueue> map = consumeQueueTable.get(topic);
         if (null == map) {

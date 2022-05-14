@@ -79,12 +79,13 @@ public class NamesrvStartup {
             return null;
         }
 
-        //创建NameServerConfig（NameServer业务参数）、NettyServer-Config（NameServer网络参数），
-        // 然后在解析启动时把指定的配置文件或启动命令中的选项值，填充到nameServerConfig, nettyServerConfig对象
+        // MARK 1.创建 NameServerConfig（NameServer业务参数）、NettyServerConfig（NameServer网络参数），
+        // 然后在解析启动时把指定的配置文件或启动命令中的选项值，填充到nameServerConfig, nettyServerConfig对象。
+        // 参数来源有如下两种方式。1）-c configFile通过-c命令指定配置文件的路径。2）使用“--属性名 属性值”，例如 --listenPort 9876。
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
         nettyServerConfig.setListenPort(9876);
-        if (commandLine.hasOption('c')) {
+        if (commandLine.hasOption('c')) {//-c configFile通过-c命令指定配置文件的路径。
             String file = commandLine.getOptionValue('c');
             if (file != null) {
                 InputStream in = new BufferedInputStream(new FileInputStream(file));
@@ -137,22 +138,19 @@ public class NamesrvStartup {
         if (null == controller) {
             throw new IllegalArgumentException("NamesrvController is null");
         }
-        //controller 初始化
+        //MARK 2.controller 初始化：
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
-        //注册JVM钩子函数并启动服务器，以便监听Broker、消息生产者的网络请求。
-        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
-            @Override
-            public Void call() throws Exception {
-                controller.shutdown();
-                return null;
-            }
+        //注册JVM钩子函数,在JVM进程关闭之前，先将线程池关闭，及时释放资源。
+        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
+            controller.shutdown();
+            return null;
         }));
-
+        //启动服务器，以便监听Broker、消息生产者的网络请求。
         controller.start();
 
         return controller;

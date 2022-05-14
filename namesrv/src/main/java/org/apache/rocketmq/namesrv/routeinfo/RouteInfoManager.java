@@ -49,9 +49,9 @@ public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    //Topic消息队列路由信息，消息发送时根据路由表进行负载均衡。
+    //Topic消息队列路由信息，消息发送时根据路由表进行负载均衡。QueueData: brokerName,读写队列数
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
-    //Broker基础信息，包含brokerName、所属集群名称、主备Broker地址。
+    //Broker基础信息，包含brokerName、所属集群名称、主备Broker地址。BrokerData: cluster,brokerName,brokerAddrs
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
     //Broker集群信息，存储集群中所有Broker名称。
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
@@ -500,19 +500,20 @@ public class RouteInfoManager {
                     this.lock.writeLock().lockInterruptibly();
                     this.brokerLiveTable.remove(brokerAddrFound);
                     this.filterServerTable.remove(brokerAddrFound);
-
+                    //遍历BrokerAddrTable中被移除的
                     String brokerNameFound = null;
                     boolean removeBrokerName = false;
                     Iterator<Entry<String, BrokerData>> itBrokerAddrTable =
                         this.brokerAddrTable.entrySet().iterator();
                     while (itBrokerAddrTable.hasNext() && (null == brokerNameFound)) {
                         BrokerData brokerData = itBrokerAddrTable.next().getValue();
-
+                        // brokerId:brokerAddrs
                         Iterator<Entry<Long, String>> it = brokerData.getBrokerAddrs().entrySet().iterator();
                         while (it.hasNext()) {
                             Entry<Long, String> entry = it.next();
                             Long brokerId = entry.getKey();
                             String brokerAddr = entry.getValue();
+                            //如果当前BrokerData中包目标brokerAddr，则移除
                             if (brokerAddr.equals(brokerAddrFound)) {
                                 brokerNameFound = brokerData.getBrokerName();
                                 it.remove();
@@ -521,7 +522,7 @@ public class RouteInfoManager {
                                 break;
                             }
                         }
-
+                        //如果当前BrokerData地址为空，则移除整个BrokerData
                         if (brokerData.getBrokerAddrs().isEmpty()) {
                             removeBrokerName = true;
                             itBrokerAddrTable.remove();

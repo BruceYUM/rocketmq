@@ -24,6 +24,10 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 定时去检测RMQ_SYS_TRANS_HALF_TOPIC主题中的消息，回查消息的事务状态。
+ * 检测频率默认为1分钟，可通过在broker.conf文件中设置transactionCheckInterval来改变默认值，单位为毫秒。
+ */
 public class TransactionalMessageCheckService extends ServiceThread {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
@@ -69,7 +73,9 @@ public class TransactionalMessageCheckService extends ServiceThread {
 
     @Override
     protected void onWaitEnd() {
+        // 事务的过期时间，只有当 cucrrentTime-storeTime>timeout 才对消息执行事务状态回查，否则在下一次周期中执行事务回查操作。
         long timeout = brokerController.getBrokerConfig().getTransactionTimeOut();
+        // 事务回查最大检测次数，如果超过最大检测次数还是无法获知消息的事务状态，RocketMQ将不会继续对消息进行事务状态回查，而是直接丢弃即相当于回滚事务。
         int checkMax = brokerController.getBrokerConfig().getTransactionCheckMax();
         long begin = System.currentTimeMillis();
         log.info("Begin to check prepare message, begin time:{}", begin);
